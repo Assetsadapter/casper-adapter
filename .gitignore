@@ -1,0 +1,16 @@
+*.db
+release
+.vscode
+.idea
+*.key
+openwtester/conf
+*.log
+go.sum
+openw_data
+main
+build
+openWalletServer
+aes
+conf
+.ini
+data
