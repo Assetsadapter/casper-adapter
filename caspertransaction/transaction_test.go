@@ -1,8 +1,6 @@
 package caspertransaction
 
 import (
-	"bytes"
-	"encoding/binary"
 	"github.com/prometheus/common/log"
 	"testing"
 )
@@ -14,19 +12,9 @@ import (
 //"3": 3
 //}
 func Test_uint32(t *testing.T) {
-	//n:= uintToShortByte(33892232)
-	//log.Info(n)
-	log.Info(uint32ToLittleEndianBytes(2))
-}
-
-func IntToHex(num int64) []byte {
-	buff := new(bytes.Buffer)
-	err := binary.Write(buff, binary.BigEndian, num)
-	if err != nil {
-		return nil
-	}
-
-	return buff.Bytes()
+	n := uintToShortByte(10000000000000)
+	log.Info(n)
+	//log.Info(uint32ToLittleEndianBytes(10000000000000))
 }
 
 func Test_transferSer(t *testing.T) {
@@ -34,5 +22,12 @@ func Test_transferSer(t *testing.T) {
 	trans.To = "d9bf2148748a85c89da5aad8ee0b0fc2d105fd39d41a4c796536354f0ae2900c"
 	trans.Amount = 33892232
 	b, _ := trans.toBytes()
-	log.Info("len=", len(b), "data=", b)
+	log.Info("transfer len=", len(b), "data=", b)
+}
+
+func Test_payment(t *testing.T) {
+	payment := Payment{}
+	payment.Amount = 10000000000000
+	b, _ := payment.toBytes()
+	log.Info("payment len=", len(b), "data=", b)
 }

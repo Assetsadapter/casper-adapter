@@ -28,7 +28,9 @@ type Approvals struct {
 	Signer    string
 	signature string
 }
-
+type Payment struct {
+	Amount uint64
+}
 type Transfer struct {
 	Amount     uint64
 	To         string //public key hex
@@ -36,7 +38,32 @@ type Transfer struct {
 	TransferId uint64
 }
 
-//序列化
+// payment 序列化
+func (payment *Payment) toBytes() ([]byte, error) {
+	var bytesData []byte
+	//tag
+	bytesData = append(bytesData, byte(0))
+
+	//modoule bytes
+	bytesData = append(bytesData, []byte{0, 0, 0, 0}...)
+	//length of args 只有1个参数可用
+	bytesData = append(bytesData, uint32ToLittleEndianBytes(1)...)
+	//Amount
+	//length of "Amount" String
+	bytesData = append(bytesData, uint32ToLittleEndianBytes(6)...)
+	//Amount string
+	bytesData = append(bytesData, []byte("amount")...)
+	//Amount number 512 bit little endian Byte
+	amountBytes := uintToShortByte(payment.Amount)
+	bytesData = append(bytesData, uint32ToLittleEndianBytes(uint32(len(amountBytes)))...)
+	bytesData = append(bytesData, amountBytes...)
+	//Amount u512 tag = 8
+	bytesData = append(bytesData, byte(8))
+
+	return bytesData, nil
+}
+
+// transfer 序列化
 func (transfer *Transfer) toBytes() ([]byte, error) {
 	var bytesData []byte
 
