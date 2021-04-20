@@ -12,9 +12,7 @@ import (
 //"3": 3
 //}
 func Test_uint32(t *testing.T) {
-	n := uintToShortByte(10000000000000)
-	log.Info(n)
-	//log.Info(uint32ToLittleEndianBytes(10000000000000))
+	log.Info(uint64ToLittleEndianBytes(1618833271075))
 }
 
 func Test_transferSer(t *testing.T) {

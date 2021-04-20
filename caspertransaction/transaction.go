@@ -3,14 +3,15 @@ package caspertransaction
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/blocktree/go-owcrypt"
 )
 
 //https://docs.casperlabs.io/en/latest/implementation/serialization-standard.html
 type Deploy struct {
 	Approvals []Approvals
 	Header    DeployHeader
-	Hash      string
-	Payment   string
+	Hash      []byte
+	Payment   Payment
 	Session   Transfer
 }
 
@@ -36,6 +37,67 @@ type Transfer struct {
 	To         string //public key hex
 	SourceUref string
 	TransferId uint64
+}
+
+func NewDeploy(payAmount, transAmount, timeStamp, gasPrice uint64, fromAccount, toAccount, chainName string) (*Deploy, error) {
+	payment := Payment{Amount: payAmount}
+	paymentBytes, err := payment.toBytes()
+	if err != nil {
+		return nil, err
+	}
+	trans := Transfer{To: toAccount, Amount: transAmount}
+	transBytes, err := trans.toBytes()
+	if err != nil {
+		return nil, err
+	}
+	var deployBodyBytes []byte
+	deployBodyBytes = append(deployBodyBytes, paymentBytes...)
+	deployBodyBytes = append(deployBodyBytes, transBytes...)
+	deployBodyHash := owcrypt.Hash(deployBodyBytes, 32, owcrypt.HASH_ALG_BLAKE2B)
+
+	deployHeader := DeployHeader{Account: fromAccount, Timestamp: timeStamp, Ttl: 0, GasPrice: gasPrice, BodyHash: deployBodyHash, ChainName: chainName}
+	deployHeaderBytes, err := deployHeader.toBytes()
+	if err != nil {
+		return nil, err
+	}
+	deployHeaderHash := owcrypt.Hash(deployHeaderBytes, 32, owcrypt.HASH_ALG_BLAKE2B)
+	deploy := &Deploy{Header: deployHeader, Session: trans, Payment: payment, Hash: deployHeaderHash}
+	return deploy, nil
+}
+
+//deployHeader 序列化
+func (deployHeader *DeployHeader) toBytes() ([]byte, error) {
+	var bytesData []byte
+	//tag is 1
+	bytesData = append(bytesData, byte(2))
+	//public key bytes
+	acountPublicKeyBytes, err := hex.DecodeString(deployHeader.Account)
+	if err != nil {
+		return nil, err
+	}
+	bytesData = append(bytesData, acountPublicKeyBytes...)
+
+	//timestamp
+	bytesData = append(bytesData, uint64ToLittleEndianBytes(deployHeader.Timestamp)...)
+
+	//gasPrice
+	bytesData = append(bytesData, uint64ToLittleEndianBytes(deployHeader.GasPrice)...)
+
+	//ttl
+	bytesData = append(bytesData, uint64ToLittleEndianBytes(deployHeader.Ttl)...)
+
+	//body hash
+	bytesData = append(bytesData, deployHeader.BodyHash...)
+
+	//dependencies
+	bytesData = append(bytesData, []byte{0, 0, 0, 0}...)
+
+	//length of chainName String
+	bytesData = append(bytesData, uint32ToLittleEndianBytes(uint32(len(deployHeader.ChainName)))...)
+	//Amount string
+	bytesData = append(bytesData, []byte(deployHeader.ChainName)...)
+
+	return nil, nil
 }
 
 // payment 序列化
