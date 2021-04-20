@@ -51,14 +51,14 @@ func (c *ApiClient) getLastBlock() (*Block, error) {
 }
 
 // 获取地址余额
-func (c *ApiClient) getBalance(address string, ignoreReserve bool, reserveAmount int64) (*AddrBalance, error) {
+func (c *ApiClient) getBalance(address, stateRootHash string) (*AddrBalance, error) {
 	var (
 		balance *AddrBalance
 		err     error
 	)
 
 	if c.APIChoose == "rpc" {
-		//balance, err = c.Client.getBalance(address)
+		balance, err = c.Client.getBalance(address, stateRootHash)
 	}
 
 	return balance, err

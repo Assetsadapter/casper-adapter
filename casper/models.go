@@ -19,7 +19,6 @@ import (
 	"errors"
 	"github.com/blocktree/openwallet/v2/openwallet"
 	"github.com/tidwall/gjson"
-	"math/big"
 	"strings"
 )
 
@@ -131,12 +130,7 @@ func (b *Block) BlockHeader() *openwallet.BlockHeader {
 
 type AddrBalance struct {
 	Address string
-	Balance *big.Int
-	Free    *big.Int
-	Freeze  *big.Int
-	Nonce   uint64
-	index   int
-	Actived bool
+	Balance uint64
 }
 
 type TxArtifacts struct {

@@ -41,6 +41,7 @@ type WalletConfig struct {
 
 	//币种
 	Symbol    string
+	ChainName string
 	MasterKey string
 	//钥匙备份路径
 	keyDir string
@@ -56,9 +57,7 @@ type WalletConfig struct {
 	backupDir string
 	// node API
 	NodeAPI string
-	// websocket API
-	WSAPI string
-	// rpc - NodeAPI   ws - WSAPI
+	// rpc - NodeAPI
 	APIChoose string
 	//钱包安装的路径
 	NodeInstallPath string
@@ -76,22 +75,13 @@ type WalletConfig struct {
 	CurveType uint32
 	//fixed fee in sawi
 	FixedFee int64
-	// reserve amount in smallest unit
-	ReserveAmount int64
-	// ignore reserve amount or not
-	IgnoreReserve bool
 	// data directory
 	DataDir string
 
-	GenesisHash string
-
-	SpecVersion uint32
-
-	AddrPrefix byte
-	Decimal    int32
+	Decimal int32
 }
 
-func NewConfig(symbol string, masterKey string, GenesisHash string, SpecVersion uint32, AddrPrefix byte) *WalletConfig {
+func NewConfig(symbol string, masterKey string) *WalletConfig {
 
 	c := WalletConfig{}
 
@@ -99,10 +89,6 @@ func NewConfig(symbol string, masterKey string, GenesisHash string, SpecVersion 
 	c.Symbol = symbol
 	c.MasterKey = masterKey
 	c.CurveType = CurveType
-	c.GenesisHash = GenesisHash
-	c.SpecVersion = SpecVersion
-	c.AddrPrefix = AddrPrefix
-
 	//钥匙备份路径
 	c.keyDir = filepath.Join("data", strings.ToLower(c.Symbol), "key")
 	//地址导出路径

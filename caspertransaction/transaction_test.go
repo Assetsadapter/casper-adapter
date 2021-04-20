@@ -1,8 +1,11 @@
 package caspertransaction
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/prometheus/common/log"
 	"testing"
+	"time"
 )
 
 //{
@@ -12,7 +15,10 @@ import (
 //"3": 3
 //}
 func Test_uint32(t *testing.T) {
-	log.Info(uint64ToLittleEndianBytes(1618833271075))
+	//log.Info(uintToShortByte(10000))
+	data := time.Unix(1618931725700/1000, 0)
+	fmt.Println(data.UTC().Format(time.RFC3339))
+
 }
 
 func Test_transferSer(t *testing.T) {
@@ -21,11 +27,14 @@ func Test_transferSer(t *testing.T) {
 	trans.Amount = 33892232
 	b, _ := trans.toBytes()
 	log.Info("transfer len=", len(b), "data=", b)
+	transJson, _ := trans.toJson()
+	log.Info("transfer json=", transJson)
 }
 
 func Test_payment(t *testing.T) {
 	payment := Payment{}
 	payment.Amount = 10000000000000
-	b, _ := payment.toBytes()
-	log.Info("payment len=", len(b), "data=", b)
+	paymentJson, _ := payment.toJson()
+	j, _ := json.Marshal(paymentJson)
+	log.Info("payment json=", string(j))
 }

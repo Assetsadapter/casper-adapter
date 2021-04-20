@@ -989,7 +989,7 @@ func (bs *CSPRBlockScanner) GetBalanceByAddress(address ...string) ([]*openwalle
 
 	for _, addr := range address {
 
-		balance, err := bs.wm.ApiClient.getBalance(addr, bs.wm.Config.IgnoreReserve, bs.wm.Config.ReserveAmount)
+		balance, err := bs.wm.ApiClient.getBalance(addr, "")
 
 		if err != nil {
 			return nil, err
@@ -998,7 +998,7 @@ func (bs *CSPRBlockScanner) GetBalanceByAddress(address ...string) ([]*openwalle
 		addrsBalance = append(addrsBalance, &openwallet.Balance{
 			Symbol:  bs.wm.Symbol(),
 			Address: addr,
-			Balance: convertToAmount(uint64(balance.Balance.Int64()), bs.wm.Decimal()),
+			Balance: convertToAmount(balance.Balance, bs.wm.Decimal()),
 		})
 	}
 

@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"github.com/blocktree/go-owcrypt"
+	"strconv"
+	"time"
 )
 
 //https://docs.casperlabs.io/en/latest/implementation/serialization-standard.html
@@ -64,6 +66,19 @@ func NewDeploy(payAmount, transAmount, timeStamp, gasPrice uint64, fromAccount, 
 	deploy := &Deploy{Header: deployHeader, Session: trans, Payment: payment, Hash: deployHeaderHash}
 	return deploy, nil
 }
+func (deploy *Deploy) toJson() (map[string]interface{}, error) {
+	deployMap := make(map[string]interface{})
+	deployBodyMap := make(map[string]interface{})
+	deployMap["deploy"] = deployBodyMap
+	header, _ := deploy.Header.toJson()
+	session, _ := deploy.Session.toJson()
+	payment, _ := deploy.Payment.toJson()
+	deployBodyMap["hash"] = hex.EncodeToString(deploy.Hash)
+	deployBodyMap["header"] = header
+	deployBodyMap["payment"] = session
+	deployBodyMap["session"] = payment
+	return nil, nil
+}
 
 //deployHeader 序列化
 func (deployHeader *DeployHeader) toBytes() ([]byte, error) {
@@ -100,6 +115,22 @@ func (deployHeader *DeployHeader) toBytes() ([]byte, error) {
 	return nil, nil
 }
 
+func (deployHeader *DeployHeader) toJson() (map[string]interface{}, error) {
+	deployHeaderMap := make(map[string]interface{})
+
+	deployHeaderMap["account"] = deployHeader.Account
+	deployHeaderMap["body_hash"] = hex.EncodeToString(deployHeader.BodyHash)
+	deployHeaderMap["chain_name"] = deployHeader.ChainName
+	deployHeaderMap["dependencies"] = []interface{}{}
+	deployHeaderMap["chain_name"] = deployHeader.ChainName
+	date := time.Unix(int64(deployHeader.Timestamp), 0)
+	deployHeaderMap["timestamp"] = date.UTC().Format(time.RFC3339)
+	ttlMin := strconv.Itoa(int(deployHeader.Ttl / 1000 / 60))
+	deployHeaderMap["ttl"] = ttlMin
+	return deployHeaderMap, nil
+
+}
+
 // payment 序列化
 func (payment *Payment) toBytes() ([]byte, error) {
 	var bytesData []byte
@@ -123,6 +154,25 @@ func (payment *Payment) toBytes() ([]byte, error) {
 	bytesData = append(bytesData, byte(8))
 
 	return bytesData, nil
+}
+
+func (payment *Payment) toJson() (map[string]interface{}, error) {
+	paymentJson := make(map[string]interface{})
+	moduleByteJson := make(map[string]interface{})
+
+	paymentJson["ModuleBytes"] = moduleByteJson
+	args := make([]interface{}, 0)
+	args = append(args, "amount")
+	amountJson := make(map[string]interface{})
+	amountBytes := uintToShortByte(payment.Amount)
+	amountJson["bytes"] = hex.EncodeToString(amountBytes)
+	amountJson["cl_type"] = "U512"
+	amountStr := strconv.FormatUint(payment.Amount, 10)
+	amountJson["parsed"] = amountStr
+	args = append(args, amountJson)
+	moduleByteJson["args"] = args
+	return paymentJson, nil
+
 }
 
 // transfer 序列化
@@ -176,5 +226,39 @@ func (transfer *Transfer) toBytes() ([]byte, error) {
 	bytesData = append(bytesData, []byte{1, 0, 0, 0, 0, 13, 5}...)
 
 	return bytesData, nil
+
+}
+
+//转化为json
+func (transfer *Transfer) toJson() (map[string]interface{}, error) {
+	sessionJson := make(map[string]interface{})
+	transferJson := make(map[string]interface{})
+
+	sessionJson["Transfer"] = transferJson
+	args := make([]interface{}, 3)
+	amountJson := make(map[string]string)
+	amountBytes := uintToShortByte(transfer.Amount)
+	amountJson["bytes"] = hex.EncodeToString(amountBytes)
+	amountJson["cl_type"] = "U512"
+	amountStr := strconv.FormatUint(transfer.Amount, 10)
+	amountJson["parsed"] = amountStr
+	args = append(args, amountJson)
+
+	//target
+	targetJson := make(map[string]interface{})
+	targetJson["bytes"] = transfer.To
+	targetJson["cl_type"] = map[string]interface{}{"ByteArray": 32}
+	targetJson["parsed"] = transfer.To
+	args = append(args, targetJson)
+
+	//target
+	idJson := make(map[string]interface{})
+	idJson["bytes"] = "00"
+	idJson["cl_type"] = map[string]interface{}{"Option": "U64"}
+	idJson["parsed"] = nil
+	args = append(args, idJson)
+	transferJson["args"] = args
+
+	return sessionJson, nil
 
 }

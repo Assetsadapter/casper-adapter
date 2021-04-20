@@ -84,25 +84,16 @@ func Test_getBlockRpc(t *testing.T) {
 func Test_getBalance(t *testing.T) {
 
 	c := NewClient(testNodeAPIRpc, true)
-	address := "CyVGZAGjfD9bbQcN7Ja7cFrazM4yAzawRhKcWYN1ZmMrpwf"
-
-	r, err := c.getBalance(address, true, 20000000)
-
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(r)
-	}
-
-	address = "J5cTdWxoMRZyQHyvvDMxB6dp7YitNpzEkj3ZrJFsGmARcC2"
-
-	r, err = c.getBalance(address, true, 20000000)
+	address := "01664adcf74db3887accb10af5dccb8e3c2a6b6d33f900ffa69cb42b356aa2ca52"
+	stateRootHash := ""
+	r, err := c.getBalance(address, stateRootHash)
 
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		fmt.Println(r)
 	}
+
 }
 
 func Test_sendTransaction(t *testing.T) {

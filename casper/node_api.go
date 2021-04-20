@@ -16,9 +16,10 @@
 package casper
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
+	"github.com/blocktree/go-owcrypt"
 	"strings"
 	"time"
 
@@ -271,31 +272,103 @@ func (c *Client) getBlockTransferTxByHeight(blockHeight uint64) ([]*Transaction,
 	return GetTransactionInBlock(resp, blockHeight), nil
 }
 
-// getBalance 获取地址余额
-func (c *Client) getBalance(address string, ignoreReserve bool, reserveAmount int64) (*AddrBalance, error) {
-	r, err := c.GetCall(fmt.Sprintf("/accounts/%s/balance-info", address))
+// address =>>> uref 映射
+var UrefCache = make(map[string]string)
 
+// getBalance 获取地址余额
+func (c *Client) getBalance(address, stateRootHash string) (*AddrBalance, error) {
+	method := "state_get_balance"
+
+	if stateRootHash == "" {
+		stateRootHashGet, err := c.getStateRootHash()
+		if err != nil {
+			return nil, err
+		}
+		stateRootHash = stateRootHashGet
+
+	}
+	uref, exists := UrefCache[address]
+	//cache 不存在 从rpc获取
+
+	if !exists {
+		urefGet, err := c.getAccountUref(address, stateRootHash)
+		if err != nil {
+			return nil, err
+		}
+		uref = urefGet
+	}
+
+	param := make(map[string]interface{}, 0)
+	param["purse_uref"] = uref
+	param["state_root_hash"] = stateRootHash
+	resp, err := c.RpcCall(method, param)
 	if err != nil {
 		return nil, err
 	}
+	balanceValue := resp.Get("balance_value")
+	if !balanceValue.Exists() {
+		return nil, errors.New("rpc get error ,state_root_hash not exists")
+	}
+	return &AddrBalance{Address: address, Balance: balanceValue.Uint()}, nil
+}
 
-	if r.Get("error").String() == "actNotFound" {
-		return &AddrBalance{Address: address, Balance: big.NewInt(0), Actived: false, Nonce: uint64(0)}, nil
+//get latest state root hash
+func (c *Client) getStateRootHash() (string, error) {
+	method := "chain_get_state_root_hash"
+	var param = make(map[string]string, 0)
+
+	resp, err := c.RpcCall(method, param)
+
+	if err != nil {
+		return "", err
+	}
+	rootHash := resp.Get("state_root_hash")
+	if !rootHash.Exists() {
+		return "", errors.New("rpc get error ,state_root_hash not exists")
 	}
 
-	free := big.NewInt(r.Get("free").Int())
-	if ignoreReserve {
-		if free.Cmp(big.NewInt(reserveAmount)) == 1 {
-			free.Sub(free, big.NewInt(reserveAmount))
-		} else {
-			free = big.NewInt(0)
-		}
+	return rootHash.String(), nil
+}
+func convertPublicToAccountHashPrefix(pubKeyHex string) (string, error) {
+	if len(pubKeyHex) == 66 && strings.HasPrefix(pubKeyHex, "01") {
+		pubKeyHex = pubKeyHex[2:]
 	}
-	feeFrozen := big.NewInt(r.Get("feeFrozen").Int())
-	nonce := uint64(r.Get("nonce").Uint())
-	balance := new(big.Int)
-	balance = balance.Sub(free, feeFrozen)
-	return &AddrBalance{Address: address, Balance: balance, Freeze: feeFrozen, Free: free, Actived: true, Nonce: nonce}, nil
+	pubKeyBytes, err := hex.DecodeString(pubKeyHex)
+	if err != nil {
+		return "", nil
+	}
+	split, _ := hex.DecodeString("00")
+	prefix := append([]byte("ed25519"), split...)
+	pubKeyBytesAll := append(prefix, pubKeyBytes...)
+	pkHash := owcrypt.Hash(pubKeyBytesAll, 32, owcrypt.HASH_ALG_BLAKE2B)
+	return fmt.Sprintf("account-hash-%s", hex.EncodeToString(pkHash)), nil
+}
+
+//get latest state root hash
+func (c *Client) getAccountUref(accountPubKey, stateRootHash string) (string, error) {
+	if accountPubKey == "" || stateRootHash == "" {
+		return "", errors.New("getAccountUref error ,param invalid")
+	}
+	method := "state_get_item"
+	accountHash, err := convertPublicToAccountHashPrefix(accountPubKey)
+	if err != nil {
+		return "", err
+	}
+
+	var param = make(map[string]string, 0)
+	param["key"] = accountHash
+	param["state_root_hash"] = stateRootHash
+	resp, err := c.RpcCall(method, param)
+
+	if err != nil {
+		return "", err
+	}
+	mainUref := resp.Get("stored_value.Account.main_purse")
+	if !mainUref.Exists() {
+		return "", errors.New("rpc get error ,main_purse not exists")
+	}
+
+	return mainUref.String(), nil
 }
 
 // sendTransaction 发送签名交易

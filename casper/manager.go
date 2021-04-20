@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/blocktree/openwallet/v2/common"
 	"github.com/blocktree/openwallet/v2/hdkeystore"
 	"github.com/blocktree/openwallet/v2/log"
 	"github.com/blocktree/openwallet/v2/openwallet"
@@ -114,36 +113,37 @@ func (wm *WalletManager) sendRawTransactionByNode(txHex string) (string, error) 
 
 // GetAddressNonce
 func (wm *WalletManager) GetAddressNonce(wrapper openwallet.WalletDAI, account *AddrBalance) uint64 {
-	var (
-		key           = wm.Symbol() + "-nonce"
-		nonce         uint64
-		nonce_db      interface{}
-		nonce_onchain uint64
-	)
-
-	//获取db记录的nonce并确认nonce值
-	nonce_db, _ = wrapper.GetAddressExtParam(account.Address, key)
-
-	//判断nonce_db是否为空,为空则说明当前nonce是0
-	if nonce_db == nil {
-		nonce = 0
-	} else {
-		nonce = common.NewString(nonce_db).UInt64()
-	}
-
-	nonce_onchain = account.Nonce
-
-	wm.Log.Info(account.Address, " get nonce : ", nonce, ", nonce_onchain : ", nonce_onchain)
-
-	//如果本地nonce_db > 链上nonce,采用本地nonce,否则采用链上nonce
-	if nonce > nonce_onchain {
-		//wm.Log.Debugf("%s nonce_db=%v > nonce_chain=%v,Use nonce_db...", address, nonce_db, nonce_onchain)
-	} else {
-		nonce = nonce_onchain
-		//wm.Log.Debugf("%s nonce_db=%v <= nonce_chain=%v,Use nonce_chain...", address, nonce_db, nonce_onchain)
-	}
-
-	return nonce
+	//var (
+	//	key           = wm.Symbol() + "-nonce"
+	//	nonce         uint64
+	//	nonce_db      interface{}
+	//	nonce_onchain uint64
+	//)
+	//
+	////获取db记录的nonce并确认nonce值
+	//nonce_db, _ = wrapper.GetAddressExtParam(account.Address, key)
+	//
+	////判断nonce_db是否为空,为空则说明当前nonce是0
+	//if nonce_db == nil {
+	//	nonce = 0
+	//} else {
+	//	nonce = common.NewString(nonce_db).UInt64()
+	//}
+	//
+	//nonce_onchain = account.Nonce
+	//
+	//wm.Log.Info(account.Address, " get nonce : ", nonce, ", nonce_onchain : ", nonce_onchain)
+	//
+	////如果本地nonce_db > 链上nonce,采用本地nonce,否则采用链上nonce
+	//if nonce > nonce_onchain {
+	//	//wm.Log.Debugf("%s nonce_db=%v > nonce_chain=%v,Use nonce_db...", address, nonce_db, nonce_onchain)
+	//} else {
+	//	nonce = nonce_onchain
+	//	//wm.Log.Debugf("%s nonce_db=%v <= nonce_chain=%v,Use nonce_chain...", address, nonce_db, nonce_onchain)
+	//}
+	//
+	//return nonce
+	return 0
 }
 
 // UpdateAddressNonce

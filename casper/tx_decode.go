@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Assetsadapter/casper-adapter/caspertransaction"
 	"math/big"
 	"sort"
 	"strconv"
@@ -47,7 +48,7 @@ func NewTransactionDecoder(wm *WalletManager) *TransactionDecoder {
 
 //CreateRawTransaction 创建交易单
 func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
-	return decoder.CreateDotRawTransaction(wrapper, rawTx)
+	return decoder.CreateCsprRawTransaction(wrapper, rawTx)
 }
 
 //SignRawTransaction 签名交易单
@@ -108,7 +109,7 @@ func (decoder *TransactionDecoder) SubmitRawTransaction(wrapper openwallet.Walle
 	return &tx, nil
 }
 
-func (decoder *TransactionDecoder) CreateDotRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
+func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
 
 	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
 
@@ -122,20 +123,17 @@ func (decoder *TransactionDecoder) CreateDotRawTransaction(wrapper openwallet.Wa
 
 	addressesBalanceList := make([]AddrBalance, 0, len(addresses))
 
-	for i, addr := range addresses {
-		balance, err := decoder.wm.ApiClient.getBalance(addr.Address, decoder.wm.Config.IgnoreReserve, decoder.wm.Config.ReserveAmount)
+	for _, addr := range addresses {
+		balance, err := decoder.wm.ApiClient.getBalance(addr.Address, "")
 		if err != nil {
 			return err
 		}
-		nonce := decoder.wm.GetAddressNonce(wrapper, balance)
-		balance.Nonce = nonce
-
-		balance.index = i
+		//nonce := decoder.wm.GetAddressNonce(wrapper, balance)
 		addressesBalanceList = append(addressesBalanceList, *balance)
 	}
 
 	sort.Slice(addressesBalanceList, func(i int, j int) bool {
-		return addressesBalanceList[i].Balance.Cmp(addressesBalanceList[j].Balance) >= 0
+		return addressesBalanceList[i].Balance > addressesBalanceList[j].Balance
 	})
 
 	fee := uint64(0)
@@ -159,43 +157,29 @@ func (decoder *TransactionDecoder) CreateDotRawTransaction(wrapper openwallet.Wa
 	fromPub := ""
 	nonce := uint64(0)
 	for _, a := range addressesBalanceList {
-		if a.Balance.Int64() < int64(amount+fee) {
+		if a.Balance < (amount + fee) {
 			continue
 		}
 		from = a.Address
-		fromPub = addresses[a.index].PublicKey
-		nonce = a.Nonce
+		//fromPub = addresses[a.index].PublicKey
+		//nonce = a.Nonce
 	}
 
 	if from == "" {
 		return openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "the balance: %s is not enough", amountStr)
 	}
 
-	nonceMap := map[string]uint64{
-		from: nonce,
-	}
-
 	rawTx.TxFrom = []string{from}
 	rawTx.TxTo = []string{to}
-	rawTx.SetExtParam("nonce", nonceMap)
 	rawTx.TxAmount = amountStr
-	onChainFee, _ := math.SafeAdd(fee, convertFromAmount("0.01", decoder.wm.Decimal()))
-	rawTx.Fees = convertToAmount(onChainFee, decoder.wm.Decimal()) //strconv.FormatUint(fee, 10)	//链上实际收取的，加上0.01的固定消耗
-	rawTx.FeeRate = convertToAmount(fee, decoder.wm.Decimal())     //strconv.FormatUint(fee, 10)
+	rawTx.FeeRate = convertToAmount(fee, decoder.wm.Decimal()) //strconv.FormatUint(fee, 10)
 
-	mostHeightBlock, err := decoder.wm.ApiClient.getLastBlock()
+	mostHeightBlock, err := decoder.wm.ApiClient.Client.getStateRootHash()
 	if err != nil {
 		return err
 	}
 
-	toPub, err := decoder.wm.Decoder.AddressDecode(to)
-	if err != nil {
-		return err
-	}
-
-	decoder.wm.Log.Debugf("nonce: %d", nonce)
-
-	emptyTrans, message, err := decoder.CreateEmptyRawTransactionAndMessage(fromPub, hex.EncodeToString(toPub), amount, nonce, fee, mostHeightBlock)
+	emptyTrans, message, err := decoder.CreateEmptyRawTransactionAndMessage(from, to, amount, nonce, fee, mostHeightBlock)
 	if err != nil {
 		return err
 	}
@@ -213,7 +197,6 @@ func (decoder *TransactionDecoder) CreateDotRawTransaction(wrapper openwallet.Wa
 	}
 	signature := openwallet.KeySignature{
 		EccType: decoder.wm.Config.CurveType,
-		Nonce:   "0x" + strconv.FormatUint(nonce, 16),
 		Address: addr,
 		Message: message,
 	}
@@ -441,7 +424,7 @@ func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.Walle
 	rawTx.Fees = convertToAmount(onChainFee, decoder.wm.Decimal()) //strconv.FormatUint(fee, 10)	//链上实际收取的，加上0.01的固定消耗
 	rawTx.FeeRate = convertToAmount(fee, decoder.wm.Decimal())     //strconv.FormatUint(fee, 10)
 
-	addrNodeBalance, err := decoder.wm.ApiClient.getBalance(from, decoder.wm.Config.IgnoreReserve, decoder.wm.Config.ReserveAmount)
+	addrNodeBalance, err := decoder.wm.ApiClient.getBalance(from, "")
 	if err != nil {
 		return errors.New("Failed to get nonce when create summay transaction!")
 	}
@@ -515,47 +498,14 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 	return raTxWithErr, nil
 }
 
-func (decoder *TransactionDecoder) CreateEmptyRawTransactionAndMessage(fromPub string, toPub string, amount uint64, nonce uint64, fee uint64, mostHeightBlock *Block) (string, string, error) {
-
-	txArtifacts, err := decoder.wm.ApiClient.getTxMaterial()
+func (decoder *TransactionDecoder) CreateEmptyRawTransactionAndMessage(fromPub string, toPub string, transferAmount, payFeeAmount uint64) (string, string, error) {
+	now := time.Now() // current local time
+	timestamp := uint64(now.Unix())
+	chainName := decoder.wm.Config.ChainName
+	deploy, err := caspertransaction.NewDeploy(payFeeAmount, transferAmount, timestamp, 1, fromPub, toPub, chainName)
 	if err != nil {
 		return "", "", err
 	}
-	genesisHash := txArtifacts.GenesisHash
-	specVersion := txArtifacts.SpecVersion
-	txVersion := txArtifacts.TxVersion
+	//deploy
 
-	tx := polkadotTransaction.TxStruct{
-		//发送方公钥
-		SenderPubkey: fromPub,
-		//接收方公钥
-		RecipientPubkey: toPub,
-		//发送金额（最小单位）
-		Amount: amount,
-		//nonce
-		Nonce: nonce,
-		//手续费（最小单位）
-		Fee: fee,
-		//当前高度
-		BlockHeight: mostHeightBlock.Height,
-		//当前高度区块哈希
-		BlockHash: RemoveOxToAddress(mostHeightBlock.Hash),
-		//创世块哈希
-		GenesisHash: RemoveOxToAddress(genesisHash),
-		//spec版本
-		SpecVersion: specVersion,
-		//TransactionVersion
-		TxVersion: txVersion,
-	}
-
-	return tx.CreateEmptyTransactionAndMessage(decoder.GetTransferCode())
-}
-
-func (decoder *TransactionDecoder) GetTransferCode() string {
-	transferCode := polkadotTransaction.DOT_Balannce_Transfer
-	if decoder.wm.Config.Symbol == "KSM" {
-		transferCode = polkadotTransaction.KSM_Balannce_Transfer
-	}
-
-	return transferCode
 }
