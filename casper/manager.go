@@ -157,16 +157,36 @@ func (wm *WalletManager) UpdateAddressNonce(wrapper openwallet.WalletDAI, addres
 }
 
 func (wm *WalletManager) ConvertPublicToAccountHash(pubKeyHex string) (string, error) {
+	//if len(pubKeyHex) == 66 && strings.HasPrefix(pubKeyHex, "01") {
+	//	pubKeyHex = pubKeyHex[2:]
+	//}
+	//pubKeyBytes, err := hex.DecodeString(pubKeyHex)
+	//if err != nil {
+	//	return "", nil
+	//}
+	//split, _ := hex.DecodeString("00")
+	//prefix := append([]byte("ed25519"), split...)
+	//pubKeyBytesAll := append(prefix, pubKeyBytes...)
+	//pkHash := owcrypt.Hash(pubKeyBytesAll, 32, owcrypt.HASH_ALG_BLAKE2B)
+	//return hex.EncodeToString(pkHash), nil
+	accountHashBytes, err := ConvertPublicToAccountHashBytes(pubKeyHex)
+	if err != nil {
+		return "", nil
+	}
+	return hex.EncodeToString(accountHashBytes), nil
+}
+
+func ConvertPublicToAccountHashBytes(pubKeyHex string) ([]byte, error) {
 	if len(pubKeyHex) == 66 && strings.HasPrefix(pubKeyHex, "01") {
 		pubKeyHex = pubKeyHex[2:]
 	}
 	pubKeyBytes, err := hex.DecodeString(pubKeyHex)
 	if err != nil {
-		return "", nil
+		return nil, nil
 	}
 	split, _ := hex.DecodeString("00")
 	prefix := append([]byte("ed25519"), split...)
 	pubKeyBytesAll := append(prefix, pubKeyBytes...)
 	pkHash := owcrypt.Hash(pubKeyBytesAll, 32, owcrypt.HASH_ALG_BLAKE2B)
-	return hex.EncodeToString(pkHash), nil
+	return pkHash, nil
 }

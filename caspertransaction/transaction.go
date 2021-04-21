@@ -2,9 +2,9 @@ package caspertransaction
 
 import (
 	"encoding/hex"
-	"errors"
 	"github.com/blocktree/go-owcrypt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -41,7 +41,7 @@ type Transfer struct {
 	TransferId uint64
 }
 
-func NewDeploy(payAmount, transAmount, timeStamp, gasPrice uint64, fromAccount, toAccount, chainName string) (*Deploy, error) {
+func NewDeploy(payAmount, transAmount, timeStamp, gasPrice, ttl uint64, fromAccount, toAccount, chainName string) (*Deploy, error) {
 	payment := Payment{Amount: payAmount}
 	paymentBytes, err := payment.toBytes()
 	if err != nil {
@@ -57,7 +57,7 @@ func NewDeploy(payAmount, transAmount, timeStamp, gasPrice uint64, fromAccount, 
 	deployBodyBytes = append(deployBodyBytes, transBytes...)
 	deployBodyHash := owcrypt.Hash(deployBodyBytes, 32, owcrypt.HASH_ALG_BLAKE2B)
 
-	deployHeader := DeployHeader{Account: fromAccount, Timestamp: timeStamp, Ttl: 0, GasPrice: gasPrice, BodyHash: deployBodyHash, ChainName: chainName}
+	deployHeader := DeployHeader{Account: fromAccount, Timestamp: timeStamp, Ttl: ttl, GasPrice: gasPrice, BodyHash: deployBodyHash, ChainName: chainName}
 	deployHeaderBytes, err := deployHeader.toBytes()
 	if err != nil {
 		return nil, err
@@ -75,9 +75,9 @@ func (deploy *Deploy) toJson() (map[string]interface{}, error) {
 	payment, _ := deploy.Payment.toJson()
 	deployBodyMap["hash"] = hex.EncodeToString(deploy.Hash)
 	deployBodyMap["header"] = header
-	deployBodyMap["payment"] = session
-	deployBodyMap["session"] = payment
-	return nil, nil
+	deployBodyMap["payment"] = payment
+	deployBodyMap["session"] = session
+	return deployBodyMap, nil
 }
 
 //deployHeader 序列化
@@ -126,7 +126,7 @@ func (deployHeader *DeployHeader) toJson() (map[string]interface{}, error) {
 	date := time.Unix(int64(deployHeader.Timestamp), 0)
 	deployHeaderMap["timestamp"] = date.UTC().Format(time.RFC3339)
 	ttlMin := strconv.Itoa(int(deployHeader.Ttl / 1000 / 60))
-	deployHeaderMap["ttl"] = ttlMin
+	deployHeaderMap["ttl"] = ttlMin + "m"
 	return deployHeaderMap, nil
 
 }
@@ -197,22 +197,19 @@ func (transfer *Transfer) toBytes() ([]byte, error) {
 	bytesData = append(bytesData, byte(8))
 
 	//target
-	toPublicBytes, err := hex.DecodeString(transfer.To)
-	if err != nil {
-		return nil, err
-	}
-	if len(toPublicBytes) != 32 {
-		return nil, errors.New("transfer serialize error, wrong public key len")
-	}
 
 	//length of "target" String
 	bytesData = append(bytesData, uint32ToLittleEndianBytes(6)...)
 	//target string
 	bytesData = append(bytesData, []byte("target")...)
-	//public key len
+	//accountHash string len
 	bytesData = append(bytesData, uint32ToLittleEndianBytes(32)...)
-	//public key
-	bytesData = append(bytesData, toPublicBytes...)
+	accountHashBytes, err := convertPublicToAccountHashBytes(transfer.To)
+	if err != nil {
+		return nil, err
+	}
+	//account hash bytes
+	bytesData = append(bytesData, accountHashBytes...)
 	//public key tag  =  15
 	bytesData = append(bytesData, byte(15))
 	//public key size 32
@@ -235,7 +232,7 @@ func (transfer *Transfer) toJson() (map[string]interface{}, error) {
 	transferJson := make(map[string]interface{})
 
 	sessionJson["Transfer"] = transferJson
-	args := make([]interface{}, 3)
+	args := make([]interface{}, 0)
 	amountJson := make(map[string]string)
 	amountBytes := uintToShortByte(transfer.Amount)
 	amountJson["bytes"] = hex.EncodeToString(amountBytes)
@@ -244,11 +241,15 @@ func (transfer *Transfer) toJson() (map[string]interface{}, error) {
 	amountJson["parsed"] = amountStr
 	args = append(args, amountJson)
 
-	//target
+	//target 目标需要转化成account-hash
 	targetJson := make(map[string]interface{})
-	targetJson["bytes"] = transfer.To
+	accountHashBytes, err := convertPublicToAccountHashBytes(transfer.To)
+	if err != nil {
+		return nil, err
+	}
+	targetJson["bytes"] = hex.EncodeToString(accountHashBytes)
 	targetJson["cl_type"] = map[string]interface{}{"ByteArray": 32}
-	targetJson["parsed"] = transfer.To
+	targetJson["parsed"] = hex.EncodeToString(accountHashBytes)
 	args = append(args, targetJson)
 
 	//target
@@ -261,4 +262,19 @@ func (transfer *Transfer) toJson() (map[string]interface{}, error) {
 
 	return sessionJson, nil
 
+}
+
+func convertPublicToAccountHashBytes(pubKeyHex string) ([]byte, error) {
+	if len(pubKeyHex) == 66 && strings.HasPrefix(pubKeyHex, "01") {
+		pubKeyHex = pubKeyHex[2:]
+	}
+	pubKeyBytes, err := hex.DecodeString(pubKeyHex)
+	if err != nil {
+		return nil, nil
+	}
+	split, _ := hex.DecodeString("00")
+	prefix := append([]byte("ed25519"), split...)
+	pubKeyBytesAll := append(prefix, pubKeyBytes...)
+	pkHash := owcrypt.Hash(pubKeyBytesAll, 32, owcrypt.HASH_ALG_BLAKE2B)
+	return pkHash, nil
 }
