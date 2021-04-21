@@ -45,7 +45,7 @@ type WalletManager struct {
 
 func NewWalletManager(wrapper *openw.WalletWrapper) *WalletManager {
 	wm := WalletManager{}
-	wm.Config = NewConfig(Symbol, MasterKey, GenesisHash, SpecVersion, AddrPrefix)
+	wm.Config = NewConfig(Symbol, MasterKey)
 	storage := hdkeystore.NewHDKeystore(wm.Config.keyDir, hdkeystore.StandardScryptN, hdkeystore.StandardScryptP)
 	wm.Storage = storage
 	//参与汇总的钱包
@@ -97,13 +97,9 @@ func (wm *WalletManager) GetWallets() ([]*openwallet.Wallet, error) {
 }
 
 //SendRawTransaction 广播交易
-func (wm *WalletManager) SendRawTransaction(txHex string) (string, error) {
+func (wm *WalletManager) SendRawTransaction(txJson map[string]interface{}) (string, error) {
 
-	return wm.sendRawTransactionByNode(txHex)
-}
-
-func (wm *WalletManager) sendRawTransactionByNode(txHex string) (string, error) {
-	txid, err := wm.ApiClient.sendTransaction(txHex)
+	txid, err := wm.ApiClient.sendTransaction(txJson)
 
 	if err != nil {
 		return "", err

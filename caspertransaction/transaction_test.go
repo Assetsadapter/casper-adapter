@@ -34,7 +34,7 @@ func Test_transferSer(t *testing.T) {
 func Test_payment(t *testing.T) {
 	payment := Payment{}
 	payment.Amount = 10000000000000
-	paymentJson, _ := payment.toJson()
+	paymentJson, _ := payment.ToJson()
 	j, _ := json.Marshal(paymentJson)
 	log.Info("payment json=", string(j))
 }
@@ -49,7 +49,7 @@ func Test_newDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	djson, _ := deploy.toJson()
+	djson, _ := deploy.ToJson()
 	j, _ := json.Marshal(djson)
 	log.Info("transfer json=", string(j))
 }

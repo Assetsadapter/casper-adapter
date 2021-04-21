@@ -10,7 +10,7 @@ import (
 
 //https://docs.casperlabs.io/en/latest/implementation/serialization-standard.html
 type Deploy struct {
-	Approvals []Approvals
+	Approvals Approvals
 	Header    DeployHeader
 	Hash      []byte
 	Payment   Payment
@@ -29,7 +29,7 @@ type DeployHeader struct {
 
 type Approvals struct {
 	Signer    string
-	signature string
+	Signature string
 }
 type Payment struct {
 	Amount uint64
@@ -66,17 +66,27 @@ func NewDeploy(payAmount, transAmount, timeStamp, gasPrice, ttl uint64, fromAcco
 	deploy := &Deploy{Header: deployHeader, Session: trans, Payment: payment, Hash: deployHeaderHash}
 	return deploy, nil
 }
-func (deploy *Deploy) toJson() (map[string]interface{}, error) {
+
+func (deploy *Deploy) ToJson() (map[string]interface{}, error) {
 	deployMap := make(map[string]interface{})
 	deployBodyMap := make(map[string]interface{})
 	deployMap["deploy"] = deployBodyMap
-	header, _ := deploy.Header.toJson()
+	if deploy.Approvals.Signature != "" {
+		var array []map[string]string
+		approvalsMap := make(map[string]string)
+		approvalsMap["signature"] = deploy.Approvals.Signature
+		approvalsMap["signer"] = deploy.Approvals.Signer
+		array = append(array, approvalsMap)
+		deployBodyMap["approvals"] = array
+	}
+	header, _ := deploy.Header.ToJson()
 	session, _ := deploy.Session.toJson()
-	payment, _ := deploy.Payment.toJson()
+	payment, _ := deploy.Payment.ToJson()
 	deployBodyMap["hash"] = hex.EncodeToString(deploy.Hash)
 	deployBodyMap["header"] = header
 	deployBodyMap["payment"] = payment
 	deployBodyMap["session"] = session
+
 	return deployBodyMap, nil
 }
 
@@ -115,18 +125,18 @@ func (deployHeader *DeployHeader) toBytes() ([]byte, error) {
 	return nil, nil
 }
 
-func (deployHeader *DeployHeader) toJson() (map[string]interface{}, error) {
+func (deployHeader *DeployHeader) ToJson() (map[string]interface{}, error) {
 	deployHeaderMap := make(map[string]interface{})
 
 	deployHeaderMap["account"] = deployHeader.Account
 	deployHeaderMap["body_hash"] = hex.EncodeToString(deployHeader.BodyHash)
-	deployHeaderMap["chain_name"] = deployHeader.ChainName
+	deployHeaderMap["gas_price"] = deployHeader.GasPrice
 	deployHeaderMap["dependencies"] = []interface{}{}
 	deployHeaderMap["chain_name"] = deployHeader.ChainName
 	date := time.Unix(int64(deployHeader.Timestamp), 0)
 	deployHeaderMap["timestamp"] = date.UTC().Format(time.RFC3339)
 	ttlMin := strconv.Itoa(int(deployHeader.Ttl / 1000 / 60))
-	deployHeaderMap["ttl"] = ttlMin + "m"
+	deployHeaderMap["ttl"] = ttlMin + "min"
 	return deployHeaderMap, nil
 
 }
@@ -156,21 +166,25 @@ func (payment *Payment) toBytes() ([]byte, error) {
 	return bytesData, nil
 }
 
-func (payment *Payment) toJson() (map[string]interface{}, error) {
+func (payment *Payment) ToJson() (map[string]interface{}, error) {
 	paymentJson := make(map[string]interface{})
 	moduleByteJson := make(map[string]interface{})
 
 	paymentJson["ModuleBytes"] = moduleByteJson
 	args := make([]interface{}, 0)
-	args = append(args, "amount")
+	var amountArray []interface{}
+	amountArray = append(amountArray, "amount")
 	amountJson := make(map[string]interface{})
 	amountBytes := uintToShortByte(payment.Amount)
 	amountJson["bytes"] = hex.EncodeToString(amountBytes)
 	amountJson["cl_type"] = "U512"
 	amountStr := strconv.FormatUint(payment.Amount, 10)
 	amountJson["parsed"] = amountStr
-	args = append(args, amountJson)
+	amountArray = append(amountArray, amountJson)
+	args = append(args, amountArray)
+
 	moduleByteJson["args"] = args
+	moduleByteJson["module_bytes"] = ""
 	return paymentJson, nil
 
 }
@@ -233,15 +247,22 @@ func (transfer *Transfer) toJson() (map[string]interface{}, error) {
 
 	sessionJson["Transfer"] = transferJson
 	args := make([]interface{}, 0)
+	var amountArray []interface{}
+	amountArray = append(amountArray, "amount")
 	amountJson := make(map[string]string)
 	amountBytes := uintToShortByte(transfer.Amount)
 	amountJson["bytes"] = hex.EncodeToString(amountBytes)
 	amountJson["cl_type"] = "U512"
 	amountStr := strconv.FormatUint(transfer.Amount, 10)
 	amountJson["parsed"] = amountStr
-	args = append(args, amountJson)
+	amountArray = append(amountArray, amountJson)
+
+	args = append(args, amountArray)
 
 	//target 目标需要转化成account-hash
+	var targetArray []interface{}
+	targetArray = append(targetArray, "target")
+
 	targetJson := make(map[string]interface{})
 	accountHashBytes, err := convertPublicToAccountHashBytes(transfer.To)
 	if err != nil {
@@ -250,16 +271,20 @@ func (transfer *Transfer) toJson() (map[string]interface{}, error) {
 	targetJson["bytes"] = hex.EncodeToString(accountHashBytes)
 	targetJson["cl_type"] = map[string]interface{}{"ByteArray": 32}
 	targetJson["parsed"] = hex.EncodeToString(accountHashBytes)
-	args = append(args, targetJson)
+	targetArray = append(targetArray, targetJson)
+	args = append(args, targetArray)
 
-	//target
+	//id
+	var idArray []interface{}
+	idArray = append(idArray, "id")
+
 	idJson := make(map[string]interface{})
 	idJson["bytes"] = "00"
 	idJson["cl_type"] = map[string]interface{}{"Option": "U64"}
 	idJson["parsed"] = nil
-	args = append(args, idJson)
+	idArray = append(idArray, idJson)
+	args = append(args, idArray)
 	transferJson["args"] = args
-
 	return sessionJson, nil
 
 }

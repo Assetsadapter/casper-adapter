@@ -17,15 +17,14 @@ package casper
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/blocktree/go-owcrypt"
-	"strings"
-	"time"
-
 	"github.com/blocktree/openwallet/v2/log"
 	"github.com/imroc/req"
 	"github.com/tidwall/gjson"
+	"strings"
 )
 
 type ClientInterface interface {
@@ -142,7 +141,7 @@ func (c *Client) RpcCall(method string, params interface{}) (*gjson.Result, erro
 	resp := gjson.ParseBytes(r.Bytes())
 	err = isError(&resp)
 	if err != nil {
-		log.Info("scan near resp info", resp.String())
+		log.Info("resp info", resp.String())
 		return nil, err
 	}
 
@@ -372,17 +371,18 @@ func (c *Client) getAccountUref(accountPubKey, stateRootHash string) (string, er
 }
 
 // sendTransaction 发送签名交易
-func (c *Client) sendTransaction(rawTx string) (string, error) {
-	body := map[string]interface{}{
-		"tx": rawTx,
-	}
+func (c *Client) sendTransaction(txJson map[string]interface{}) (string, error) {
+	method := "account_put_deploy"
 
-	resp, err := c.PostCall("/transaction", body)
+	param := map[string]interface{}{
+		"deploy": txJson,
+	}
+	str, _ := json.Marshal(txJson)
+	log.Info("deploy:", string(str))
+	resp, err := c.RpcCall(method, param)
 	if err != nil {
 		return "", err
 	}
-
-	time.Sleep(time.Duration(1) * time.Second)
 
 	log.Debug("sendTransaction result : ", resp)
 
@@ -390,7 +390,7 @@ func (c *Client) sendTransaction(rawTx string) (string, error) {
 		return "", errors.New("Submit transaction with error: " + resp.Get("error").String() + "," + resp.Get("cause").String())
 	}
 
-	return resp.Get("hash").String(), nil
+	return resp.Get("deploy_hash").String(), nil
 }
 
 func RemoveOxToAddress(addr string) string {

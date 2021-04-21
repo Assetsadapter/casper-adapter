@@ -77,13 +77,13 @@ func (c *ApiClient) getBlockByHeight(height uint64) (*Block, error) {
 	return nil, nil
 }
 
-func (c *ApiClient) sendTransaction(rawTx string) (string, error) {
+func (c *ApiClient) sendTransaction(txJson map[string]interface{}) (string, error) {
 	var (
 		txid string
 		err  error
 	)
 	if c.APIChoose == "rpc" {
-		txid, err = c.Client.sendTransaction(rawTx)
+		txid, err = c.Client.sendTransaction(txJson)
 	}
 
 	return txid, err
