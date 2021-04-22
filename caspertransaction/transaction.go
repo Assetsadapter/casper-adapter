@@ -23,7 +23,7 @@ type DeployHeader struct {
 	Ttl          uint64
 	GasPrice     uint64
 	BodyHash     []byte
-	Dependencies [][]byte
+	Dependencies []byte
 	ChainName    string
 }
 
@@ -57,7 +57,7 @@ func NewDeploy(payAmount, transAmount, timeStamp, gasPrice, ttl uint64, fromAcco
 	deployBodyBytes = append(deployBodyBytes, transBytes...)
 	deployBodyHash := owcrypt.Hash(deployBodyBytes, 32, owcrypt.HASH_ALG_BLAKE2B)
 
-	deployHeader := DeployHeader{Account: fromAccount, Timestamp: timeStamp, Ttl: ttl, GasPrice: gasPrice, BodyHash: deployBodyHash, ChainName: chainName}
+	deployHeader := DeployHeader{Account: fromAccount, Timestamp: timeStamp, Ttl: ttl, GasPrice: gasPrice, BodyHash: deployBodyHash, ChainName: chainName, Dependencies: []byte{}}
 	deployHeaderBytes, err := deployHeader.toBytes()
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (deploy *Deploy) ToJson() (map[string]interface{}, error) {
 	if deploy.Approvals.Signature != "" {
 		var array []map[string]string
 		approvalsMap := make(map[string]string)
-		approvalsMap["signature"] = deploy.Approvals.Signature
+		approvalsMap["signature"] = "01" + deploy.Approvals.Signature
 		approvalsMap["signer"] = deploy.Approvals.Signer
 		array = append(array, approvalsMap)
 		deployBodyMap["approvals"] = array
@@ -94,9 +94,9 @@ func (deploy *Deploy) ToJson() (map[string]interface{}, error) {
 func (deployHeader *DeployHeader) toBytes() ([]byte, error) {
 	var bytesData []byte
 	//tag is 1
-	bytesData = append(bytesData, byte(2))
+	bytesData = append(bytesData, byte(1))
 	//public key bytes
-	acountPublicKeyBytes, err := hex.DecodeString(deployHeader.Account)
+	acountPublicKeyBytes, err := hex.DecodeString(deployHeader.Account[2:])
 	if err != nil {
 		return nil, err
 	}
@@ -105,11 +105,11 @@ func (deployHeader *DeployHeader) toBytes() ([]byte, error) {
 	//timestamp
 	bytesData = append(bytesData, uint64ToLittleEndianBytes(deployHeader.Timestamp)...)
 
-	//gasPrice
-	bytesData = append(bytesData, uint64ToLittleEndianBytes(deployHeader.GasPrice)...)
-
 	//ttl
 	bytesData = append(bytesData, uint64ToLittleEndianBytes(deployHeader.Ttl)...)
+
+	//gasPrice
+	bytesData = append(bytesData, uint64ToLittleEndianBytes(deployHeader.GasPrice)...)
 
 	//body hash
 	bytesData = append(bytesData, deployHeader.BodyHash...)
@@ -122,7 +122,7 @@ func (deployHeader *DeployHeader) toBytes() ([]byte, error) {
 	//Amount string
 	bytesData = append(bytesData, []byte(deployHeader.ChainName)...)
 
-	return nil, nil
+	return bytesData, nil
 }
 
 func (deployHeader *DeployHeader) ToJson() (map[string]interface{}, error) {
@@ -133,10 +133,10 @@ func (deployHeader *DeployHeader) ToJson() (map[string]interface{}, error) {
 	deployHeaderMap["gas_price"] = deployHeader.GasPrice
 	deployHeaderMap["dependencies"] = []interface{}{}
 	deployHeaderMap["chain_name"] = deployHeader.ChainName
-	date := time.Unix(int64(deployHeader.Timestamp), 0)
-	deployHeaderMap["timestamp"] = date.UTC().Format(time.RFC3339)
-	ttlMin := strconv.Itoa(int(deployHeader.Ttl / 1000 / 60))
-	deployHeaderMap["ttl"] = ttlMin + "min"
+	date := time.Unix(int64(deployHeader.Timestamp/1000), int64(deployHeader.Timestamp%1000)*int64(time.Millisecond))
+	deployHeaderMap["timestamp"] = date.UTC().Format(time.RFC3339Nano)
+	ttlMin := strconv.Itoa(int(deployHeader.Ttl))
+	deployHeaderMap["ttl"] = ttlMin + "ms"
 	return deployHeaderMap, nil
 
 }

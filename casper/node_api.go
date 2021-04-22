@@ -377,7 +377,7 @@ func (c *Client) sendTransaction(txJson map[string]interface{}) (string, error) 
 	param := map[string]interface{}{
 		"deploy": txJson,
 	}
-	str, _ := json.Marshal(txJson)
+	str, _ := json.Marshal(param)
 	log.Info("deploy:", string(str))
 	resp, err := c.RpcCall(method, param)
 	if err != nil {

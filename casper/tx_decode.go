@@ -105,7 +105,9 @@ func (decoder *TransactionDecoder) SignRawTransaction(wrapper openwallet.WalletD
 			}
 			decoder.wm.Log.Debugf("message: %s", hex.EncodeToString(msg))
 			decoder.wm.Log.Debugf("publicKey: %s", hex.EncodeToString(publicKey))
+			decoder.wm.Log.Debug("publicKey: ", publicKey)
 			decoder.wm.Log.Errorf("privateKey: %s", base58.Encode(keyBytes))
+			decoder.wm.Log.Error("privateKey: ", keyBytes)
 
 			decoder.wm.Log.Debugf("signature: %s", hex.EncodeToString(sig))
 
@@ -246,7 +248,7 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 	//if err != nil {
 	//	return err
 	//}
-	var payment uint64 = 100000000
+	var payment uint64 = 10000
 	deploy, message, err := decoder.CreateEmptyRawTransactionAndMessage(from, to, amount, payment)
 	if err != nil {
 		return err
@@ -540,12 +542,13 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 }
 
 func (decoder *TransactionDecoder) CreateEmptyRawTransactionAndMessage(fromPub string, toPub string, transferAmount, payFeeAmount uint64) (*caspertransaction.Deploy, string, error) {
-	now := time.Now() // current local time
-	timestamp := uint64(now.Unix())
+	//now := time.Now() // current local time
+	//timestamp := uint64(now.Unix())
+	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 	chainName := decoder.wm.Config.ChainName
 	ttlTime := uint64(30 * 60 * 1000)
 
-	deploy, err := caspertransaction.NewDeploy(payFeeAmount, transferAmount, timestamp, 1, ttlTime, fromPub, toPub, chainName)
+	deploy, err := caspertransaction.NewDeploy(payFeeAmount, transferAmount, uint64(timestamp), 1, ttlTime, fromPub, toPub, chainName)
 	if err != nil {
 		return nil, "", err
 	}
