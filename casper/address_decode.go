@@ -2,16 +2,9 @@ package casper
 
 import (
 	"encoding/hex"
-	"github.com/blocktree/go-owcdrivers/addressEncoder"
 	"github.com/blocktree/go-owcrypt"
 	"github.com/blocktree/openwallet/v2/openwallet"
 	"strings"
-)
-
-var (
-	alphabet   = addressEncoder.BTCAlphabet
-	ssPrefix   = []byte{0x53, 0x53, 0x35, 0x38, 0x50, 0x52, 0x45}
-	encodeType = "base58"
 )
 
 var (

@@ -68,8 +68,8 @@ type SaveResult struct {
 	Success     bool
 }
 
-//NewDOTBlockScanner 创建区块链扫描器
-func NewDOTBlockScanner(wm *WalletManager) *CSPRBlockScanner {
+//NewCSPRBlockScanner 创建区块链扫描器
+func NewCSPRBlockScanner(wm *WalletManager) *CSPRBlockScanner {
 	bs := CSPRBlockScanner{
 		BlockScannerBase: openwallet.NewBlockScannerBase(),
 	}

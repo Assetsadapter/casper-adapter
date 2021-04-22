@@ -52,7 +52,7 @@ func NewWalletManager(wrapper *openw.WalletWrapper) *WalletManager {
 	wm.WalletsInSum = make(map[string]*openwallet.Wallet)
 	//区块扫描器
 	wm.wrapper = wrapper
-	wm.Blockscanner = NewDOTBlockScanner(&wm)
+	wm.Blockscanner = NewCSPRBlockScanner(&wm)
 	wm.Decoder = NewAddressDecoderV2(&wm)
 	wm.TxDecoder = NewTransactionDecoder(&wm)
 	wm.Log = log.NewOWLogger(wm.Symbol())
@@ -107,41 +107,6 @@ func (wm *WalletManager) SendRawTransaction(txJson map[string]interface{}) (stri
 	return txid, nil
 }
 
-// GetAddressNonce
-func (wm *WalletManager) GetAddressNonce(wrapper openwallet.WalletDAI, account *AddrBalance) uint64 {
-	//var (
-	//	key           = wm.Symbol() + "-nonce"
-	//	nonce         uint64
-	//	nonce_db      interface{}
-	//	nonce_onchain uint64
-	//)
-	//
-	////获取db记录的nonce并确认nonce值
-	//nonce_db, _ = wrapper.GetAddressExtParam(account.Address, key)
-	//
-	////判断nonce_db是否为空,为空则说明当前nonce是0
-	//if nonce_db == nil {
-	//	nonce = 0
-	//} else {
-	//	nonce = common.NewString(nonce_db).UInt64()
-	//}
-	//
-	//nonce_onchain = account.Nonce
-	//
-	//wm.Log.Info(account.Address, " get nonce : ", nonce, ", nonce_onchain : ", nonce_onchain)
-	//
-	////如果本地nonce_db > 链上nonce,采用本地nonce,否则采用链上nonce
-	//if nonce > nonce_onchain {
-	//	//wm.Log.Debugf("%s nonce_db=%v > nonce_chain=%v,Use nonce_db...", address, nonce_db, nonce_onchain)
-	//} else {
-	//	nonce = nonce_onchain
-	//	//wm.Log.Debugf("%s nonce_db=%v <= nonce_chain=%v,Use nonce_chain...", address, nonce_db, nonce_onchain)
-	//}
-	//
-	//return nonce
-	return 0
-}
-
 // UpdateAddressNonce
 func (wm *WalletManager) UpdateAddressNonce(wrapper openwallet.WalletDAI, address string, nonce uint64) {
 	key := wm.Symbol() + "-nonce"
@@ -153,18 +118,7 @@ func (wm *WalletManager) UpdateAddressNonce(wrapper openwallet.WalletDAI, addres
 }
 
 func (wm *WalletManager) ConvertPublicToAccountHash(pubKeyHex string) (string, error) {
-	//if len(pubKeyHex) == 66 && strings.HasPrefix(pubKeyHex, "01") {
-	//	pubKeyHex = pubKeyHex[2:]
-	//}
-	//pubKeyBytes, err := hex.DecodeString(pubKeyHex)
-	//if err != nil {
-	//	return "", nil
-	//}
-	//split, _ := hex.DecodeString("00")
-	//prefix := append([]byte("ed25519"), split...)
-	//pubKeyBytesAll := append(prefix, pubKeyBytes...)
-	//pkHash := owcrypt.Hash(pubKeyBytesAll, 32, owcrypt.HASH_ALG_BLAKE2B)
-	//return hex.EncodeToString(pkHash), nil
+
 	accountHashBytes, err := ConvertPublicToAccountHashBytes(pubKeyHex)
 	if err != nil {
 		return "", nil
