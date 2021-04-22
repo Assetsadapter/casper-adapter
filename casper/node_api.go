@@ -295,6 +295,8 @@ func (c *Client) getBalance(address, stateRootHash string) (*AddrBalance, error)
 			return nil, err
 		}
 		uref = urefGet
+		//放入缓存
+		UrefCache[address] = uref
 	}
 
 	param := make(map[string]interface{}, 0)

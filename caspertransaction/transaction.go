@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-//https://docs.casperlabs.io/en/latest/implementation/serialization-standard.html
+//https://docs.casperlabs.io/en/latest/implementation/serialization-standard.html 有些细节不全
+//https://github.com/casper-ecosystem/casper-client-sdk.git 参考JavaScript sdk的实现
 type Deploy struct {
 	Approvals Approvals
 	Header    DeployHeader

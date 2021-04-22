@@ -18,6 +18,7 @@ package casper
 import (
 	"errors"
 	"fmt"
+	"github.com/blocktree/openwallet/log"
 	"strconv"
 	"strings"
 
@@ -391,7 +392,7 @@ func (bs *CSPRBlockScanner) BatchExtractTransaction(blockHeight uint64, blockHas
 	)
 
 	if len(txs) == 0 {
-		return errors.New("BatchExtractTransaction block is nil.")
+		return errors.New("no cspr deply in block  " + fmt.Sprintf("%d", blockHeight))
 	}
 
 	//生产通道
@@ -986,13 +987,20 @@ func (wm *WalletManager) GetTransactionInMemPool(txid string) (*Transaction, err
 func (bs *CSPRBlockScanner) GetBalanceByAddress(address ...string) ([]*openwallet.Balance, error) {
 
 	addrsBalance := make([]*openwallet.Balance, 0)
-
+	stateRootHash, err := bs.wm.ApiClient.Client.getStateRootHash()
+	if err != nil {
+		return nil, err
+	}
 	for _, addr := range address {
 
-		balance, err := bs.wm.ApiClient.getBalance(addr, "")
+		if !strings.HasPrefix(addr, "01") {
+			continue
+		}
+		balance, err := bs.wm.ApiClient.getBalance(addr, stateRootHash)
 
 		if err != nil {
-			return nil, err
+			log.Error("get balance error,", err)
+			continue
 		}
 
 		addrsBalance = append(addrsBalance, &openwallet.Balance{

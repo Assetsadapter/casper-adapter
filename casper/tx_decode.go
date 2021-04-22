@@ -18,18 +18,15 @@ package casper
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/Assetsadapter/casper-adapter/caspertransaction"
 	"github.com/Assetsadapter/casper-adapter/txsigner"
 	"github.com/blocktree/go-owcrypt"
 	"github.com/mr-tron/base58"
+	"github.com/shopspring/decimal"
 	"math/big"
 	"sort"
-	"strconv"
 	"time"
-
-	"github.com/ethereum/go-ethereum/common/math"
 
 	"github.com/blocktree/openwallet/v2/openwallet"
 )
@@ -221,7 +218,6 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 		amountStr = v
 		break
 	}
-	// keySignList := make([]*openwallet.KeySignature, 1, 1)
 
 	amount := uint64(int64(convertFromAmount(amountStr, decoder.wm.Decimal())))
 
@@ -231,8 +227,7 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 			continue
 		}
 		from = a.Address
-		//fromPub = addresses[a.index].PublicKey
-		//nonce = a.Nonce
+
 	}
 
 	if from == "" {
@@ -242,14 +237,9 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 	rawTx.TxFrom = []string{from}
 	rawTx.TxTo = []string{to}
 	rawTx.TxAmount = amountStr
-	rawTx.FeeRate = convertToAmount(fee, decoder.wm.Decimal()) //strconv.FormatUint(fee, 10)
+	rawTx.FeeRate = convertToAmount(fee, decoder.wm.Decimal())
 
-	//mostHeightBlock, err := decoder.wm.ApiClient.Client.getStateRootHash()
-	//if err != nil {
-	//	return err
-	//}
-	var payment uint64 = 10000
-	deploy, message, err := decoder.CreateEmptyRawTransactionAndMessage(from, to, amount, payment)
+	deploy, message, err := decoder.CreateEmptyRawTransactionAndMessage(from, to, amount, fee)
 	if err != nil {
 		return err
 	}
@@ -338,10 +328,13 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 	var (
 		rawTxArray      = make([]*openwallet.RawTransaction, 0)
 		accountID       = sumRawTx.Account.AccountID
-		minTransfer     = big.NewInt(int64(convertFromAmount(sumRawTx.MinTransfer, decoder.wm.Decimal())))
 		retainedBalance = big.NewInt(int64(convertFromAmount(sumRawTx.RetainedBalance, decoder.wm.Decimal())))
 	)
-
+	minTransferDec, err := decimal.NewFromString(sumRawTx.MinTransfer)
+	if err != nil {
+		return nil, err
+	}
+	minTransfer := big.NewInt(minTransferDec.IntPart())
 	if minTransfer.Cmp(retainedBalance) < 0 {
 		return nil, fmt.Errorf("mini transfer amount must be greater than address retained balance")
 	}
@@ -366,13 +359,25 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 	if err != nil {
 		return nil, err
 	}
+	fee := new(big.Int)
+	if len(sumRawTx.FeeRate) > 0 {
+		feeGet, err := decimal.NewFromString(sumRawTx.FeeRate)
+		if err != nil {
+			return nil, err
+		}
+		fee = big.NewInt(feeGet.IntPart())
+	} else {
+		fee = big.NewInt(decoder.wm.Config.FixedFee)
+	}
 
 	for _, addrBalance := range addrBalanceArray {
 
 		//检查余额是否超过最低转账
 		addrBalance_BI := big.NewInt(int64(convertFromAmount(addrBalance.Balance, decoder.wm.Decimal())))
 
-		if addrBalance_BI.Cmp(minTransfer) < 0 {
+		addrBalance_BI_Fee := new(big.Int)
+		addrBalance_BI_Fee.Sub(addrBalance_BI, fee)
+		if addrBalance_BI_Fee.Cmp(minTransfer) < 0 {
 			continue
 		}
 		//计算汇总数量 = 余额 - 保留余额
@@ -381,13 +386,6 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 
 		//this.wm.Log.Debug("sumAmount:", sumAmount)
 		//计算手续费
-		feeInt := uint64(0)
-		if len(sumRawTx.FeeRate) > 0 {
-			feeInt = convertFromAmount(sumRawTx.FeeRate, decoder.wm.Decimal())
-		} else {
-			feeInt = uint64(decoder.wm.Config.FixedFee)
-		}
-		fee := big.NewInt(int64(feeInt))
 
 		//减去手续费
 		sumAmount_BI.Sub(sumAmount_BI, fee)
@@ -412,6 +410,7 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 			Coin:     sumRawTx.Coin,
 			Account:  sumRawTx.Account,
 			ExtParam: sumRawTx.ExtParam,
+			TxAmount: sumAmount,
 			To: map[string]string{
 				sumRawTx.SummaryAddress: sumAmount,
 			},
@@ -419,110 +418,47 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 			FeeRate:  sumRawTx.FeeRate,
 		}
 
-		createErr := decoder.createRawTransaction(
-			wrapper,
-			rawTx,
-			addrBalance)
-		if createErr != nil {
-			return nil, createErr
+		//createErr := decoder.createRawTransaction(
+		//	wrapper,
+		//	rawTx,
+		//	addrBalance)
+		//if createErr != nil {
+		//	return nil, createErr
+		//}
+
+		deploy, message, err := decoder.CreateEmptyRawTransactionAndMessage(addrBalance.Address, sumRawTx.SummaryAddress, sumAmount_BI.Uint64(), fee.Uint64())
+		if err != nil {
+			return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "Serialization error ")
 		}
+		deployBytes, err := json.Marshal(deploy)
+		if err != nil {
+			return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "json marshal tx error")
+		}
+
+		rawTx.RawHex = hex.EncodeToString(deployBytes)
+
+		if rawTx.Signatures == nil {
+			rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
+		}
+		keySigs := make([]*openwallet.KeySignature, 0)
+
+		addr, err := wrapper.GetAddress(addrBalance.Address)
+		if err != nil {
+			return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "find address error")
+
+		}
+		signature := openwallet.KeySignature{
+			EccType: decoder.wm.Config.CurveType,
+			Address: addr,
+			Message: message,
+		}
+		keySigs = append(keySigs, &signature)
+		rawTx.Signatures[rawTx.Account.AccountID] = keySigs
 
 		//创建成功，添加到队列
 		rawTxArray = append(rawTxArray, rawTx)
 	}
 	return rawTxArray, nil
-}
-
-func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction, addrBalance *openwallet.Balance) error {
-
-	fee := uint64(0)
-	if len(rawTx.FeeRate) > 0 {
-		fee = convertFromAmount(rawTx.FeeRate, decoder.wm.Decimal())
-	} else {
-		fee = uint64(decoder.wm.Config.FixedFee)
-	}
-
-	var amountStr, to string
-	for k, v := range rawTx.To {
-		to = k
-		amountStr = v
-		break
-	}
-
-	amount := uint64(convertFromAmount(amountStr, decoder.wm.Decimal()))
-	from := addrBalance.Address
-	fromAddr, err := wrapper.GetAddress(from)
-	if err != nil {
-		return err
-	}
-
-	rawTx.TxFrom = []string{from}
-	rawTx.TxTo = []string{to}
-	rawTx.TxAmount = amountStr
-	onChainFee, _ := math.SafeAdd(fee, convertFromAmount("0.01", decoder.wm.Decimal()))
-	rawTx.Fees = convertToAmount(onChainFee, decoder.wm.Decimal()) //strconv.FormatUint(fee, 10)	//链上实际收取的，加上0.01的固定消耗
-	rawTx.FeeRate = convertToAmount(fee, decoder.wm.Decimal())     //strconv.FormatUint(fee, 10)
-
-	addrNodeBalance, err := decoder.wm.ApiClient.getBalance(from, "")
-	if err != nil {
-		return errors.New("Failed to get nonce when create summay transaction!")
-	}
-	nonce := decoder.wm.GetAddressNonce(wrapper, addrNodeBalance)
-
-	nonceJSON := map[string]interface{}{}
-	if len(rawTx.ExtParam) > 0 {
-		err = json.Unmarshal([]byte(rawTx.ExtParam), &nonceJSON)
-		if err != nil {
-			return err
-		}
-	}
-	nonceJSON[from] = nonce
-
-	rawTx.SetExtParam("nonce", nonceJSON)
-
-	//mostHeightBlock, err := decoder.wm.ApiClient.getLastBlock()
-	//if err != nil {
-	//	return errors.New("Failed to get block height when create summay transaction!")
-	//}
-
-	toPub, err := decoder.wm.Decoder.AddressDecode(to)
-	if err != nil {
-		return err
-	}
-
-	deploy, hash, err := decoder.CreateEmptyRawTransactionAndMessage(fromAddr.PublicKey, hex.EncodeToString(toPub), amount, fee)
-
-	if err != nil {
-		return err
-	}
-	deployBytes, err := json.Marshal(deploy)
-	if err != nil {
-		return err
-	}
-	rawTx.RawHex = hex.EncodeToString(deployBytes)
-
-	if rawTx.Signatures == nil {
-		rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
-	}
-
-	keySigs := make([]*openwallet.KeySignature, 0)
-
-	signature := openwallet.KeySignature{
-		EccType: decoder.wm.Config.CurveType,
-		Nonce:   "0x" + strconv.FormatUint(nonce, 16),
-		Address: fromAddr,
-		Message: hash,
-	}
-
-	keySigs = append(keySigs, &signature)
-
-	rawTx.Signatures[rawTx.Account.AccountID] = keySigs
-
-	rawTx.FeeRate = big.NewInt(int64(fee)).String()
-
-	rawTx.IsBuilt = true
-
-	return nil
 }
 
 //CreateSummaryRawTransactionWithError 创建汇总交易，返回能原始交易单数组（包含带错误的原始交易单）

@@ -3,8 +3,8 @@ package caspertransaction
 import (
 	"encoding/json"
 	"github.com/prometheus/common/log"
+	"github.com/shopspring/decimal"
 	"testing"
-	"time"
 )
 
 //{
@@ -14,11 +14,9 @@ import (
 //"3": 3
 //}
 func Test_uint32(t *testing.T) {
-	//log.Info(uintToShortByte(10000))
-	i := time.Now().UnixNano() / int64(time.Millisecond)
-	log.Info(i)
-	log.Info(time.Now().Unix())
-	//a:=uint64(1619030752862)
+	//a,_:=strconv.ParseInt("10000.0000", 10, 64)
+	d, _ := decimal.NewFromString("10000.0000")
+	log.Info(d.IntPart())
 
 }
 
