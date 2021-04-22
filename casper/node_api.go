@@ -268,7 +268,17 @@ func (c *Client) getBlockTransferTxByHeight(blockHeight uint64) ([]*Transaction,
 	if err != nil {
 		return nil, err
 	}
-	return GetTransactionInBlock(resp, blockHeight), nil
+	txArray := GetTransactionInBlock(resp, blockHeight)
+
+	//获取交易费
+	for _, tx := range txArray {
+		fee, err := c.getDeployFee(tx.TxID)
+		if err != nil {
+			return nil, err
+		}
+		tx.Fee = fee
+	}
+	return txArray, nil
 }
 
 // address =>>> uref 映射
@@ -330,6 +340,26 @@ func (c *Client) getStateRootHash() (string, error) {
 
 	return rootHash.String(), nil
 }
+
+func (c *Client) getDeployFee(deployHash string) (uint64, error) {
+	method := "info_get_deploy"
+	var param = make(map[string]string, 0)
+	param["deploy_hash"] = deployHash
+	resp, err := c.RpcCall(method, param)
+
+	if err != nil {
+		return 0, err
+	}
+	payment := resp.Get("deploy.payment.ModuleBytes.args")
+	if !payment.Exists() {
+		return 0, errors.New("rpc get error ,payment not exists")
+	}
+
+	paymentFee := payment.Array()[0].Array()[1].Get("parsed").Uint()
+
+	return paymentFee, nil
+}
+
 func convertPublicToAccountHashPrefix(pubKeyHex string) (string, error) {
 	if len(pubKeyHex) == 66 && strings.HasPrefix(pubKeyHex, "01") {
 		pubKeyHex = pubKeyHex[2:]

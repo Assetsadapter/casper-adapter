@@ -207,7 +207,12 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 
 	fee := uint64(0)
 	if len(rawTx.FeeRate) > 0 {
-		fee = convertFromAmount(rawTx.FeeRate, decoder.wm.Decimal())
+		feeConvert, err := decimal.NewFromString(rawTx.FeeRate)
+		fee = uint64(feeConvert.IntPart())
+		if err != nil {
+			return err
+		}
+
 	} else {
 		fee = uint64(decoder.wm.Config.FixedFee)
 	}
