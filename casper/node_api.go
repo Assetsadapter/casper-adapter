@@ -354,6 +354,9 @@ func (c *Client) getDeployFee(deployHash string) (uint64, error) {
 	if !payment.Exists() {
 		return 0, errors.New("rpc get error ,payment not exists")
 	}
+	if len(payment.Array()) == 0 {
+		return 0, nil
+	}
 
 	paymentFee := payment.Array()[0].Array()[1].Get("parsed").Uint()
 
